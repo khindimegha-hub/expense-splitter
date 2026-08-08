@@ -63,17 +63,44 @@
         </div>
 
         <!-- Expenses panel (placeholder for Day 6) -->
+        <!-- Expenses panel -->
         <div class="card">
           <div class="card-header">
             <h3>Expenses</h3>
+            <button id="show-add-expense-btn" class="btn btn-small btn-primary">+ Add</button>
           </div>
-          <p id="expenses-placeholder" class="muted-text">
-            Expense tracking coming in the next step.
-          </p>
+
+          <form id="add-expense-form" class="expense-form hidden">
+            <input type="text" id="expense-desc-input" placeholder="What was it for? (e.g. Dinner)" required>
+            <input type="number" id="expense-amount-input" placeholder="Amount (₹)" min="0.01" step="0.01" required>
+
+            <label class="field-label">Paid by</label>
+            <select id="expense-paid-by-select" required></select>
+
+            <label class="field-label">Split between</label>
+            <div id="expense-split-checkboxes" class="checkbox-group"></div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Add Expense</button>
+              <button type="button" id="cancel-add-expense-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+          </form>
+
           <ul id="expenses-list" class="simple-list"></ul>
         </div>
 
+      
       </div>
+
+      <!-- Balances panel -->
+      <div class="card">
+        <div class="card-header">
+          <h3>Balances</h3>
+        </div>
+        <ul id="balances-list" class="simple-list"></ul>
+      </div>
+
+    
     </section>
 
     <!-- Toast / error message -->

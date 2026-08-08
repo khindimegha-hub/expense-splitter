@@ -8,6 +8,10 @@ const groupDetailView = document.getElementById('group-detail-view');
 const groupsList = document.getElementById('groups-list');
 const groupDetailTitle = document.getElementById('group-detail-title');
 const membersList = document.getElementById('members-list');
+const expensesList = document.getElementById('expenses-list');
+const balancesList = document.getElementById('balances-list');
+const paidBySelect = document.getElementById('expense-paid-by-select');
+const splitCheckboxes = document.getElementById('expense-split-checkboxes');
 const toast = document.getElementById('toast');
 
 // ---------- Utility ----------
@@ -42,6 +46,12 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 
 function initials(name) {
   return name.trim().charAt(0).toUpperCase();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 // ---------- View switching ----------
@@ -123,6 +133,12 @@ async function loadGroupDetail(groupId) {
     const group = await apiCall(`/groups/${groupId}`);
     groupDetailTitle.textContent = group.name;
     renderMembers(group.members);
+    populateExpenseFormOptions(group.members);
+
+    await Promise.all([
+      loadExpenses(groupId),
+      loadBalances(groupId)
+    ]);
   } catch (err) {
     showGroupsView();
   }
@@ -168,12 +184,156 @@ document.getElementById('add-member-form').addEventListener('submit', async (e) 
   }
 });
 
-// ---------- Helper: prevent XSS from user-entered names ----------
+// ---------- Expenses ----------
 
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+function populateExpenseFormOptions(members) {
+  // Payer dropdown
+  paidBySelect.innerHTML = '';
+  members.forEach(member => {
+    const option = document.createElement('option');
+    option.value = member.id;
+    option.textContent = member.name;
+    paidBySelect.appendChild(option);
+  });
+
+  // Split checkboxes — all checked by default (equal split among everyone)
+  splitCheckboxes.innerHTML = '';
+  members.forEach(member => {
+    const label = document.createElement('label');
+    label.className = 'checkbox-item';
+    label.innerHTML = `
+      <input type="checkbox" value="${member.id}" checked>
+      ${escapeHtml(member.name)}
+    `;
+    splitCheckboxes.appendChild(label);
+  });
+}
+
+async function loadExpenses(groupId) {
+  try {
+    const expenses = await apiCall(`/groups/${groupId}/expenses`);
+    renderExpenses(expenses);
+  } catch (err) {
+    expensesList.innerHTML = '<li class="muted-text">Failed to load expenses.</li>';
+  }
+}
+
+function renderExpenses(expenses) {
+  if (expenses.length === 0) {
+    expensesList.innerHTML = '<li class="muted-text">No expenses yet.</li>';
+    return;
+  }
+
+  expensesList.innerHTML = '';
+  expenses.forEach(expense => {
+    const li = document.createElement('li');
+    const splitNames = expense.splits.map(s => s.member_name).join(', ');
+    li.innerHTML = `
+      <div class="expense-item">
+        <div class="expense-item-top">
+          <span>${escapeHtml(expense.description)}</span>
+          <span class="expense-amount">₹${expense.amount.toFixed(2)}</span>
+        </div>
+        <span class="expense-item-meta">Paid by ${escapeHtml(expense.paid_by)} · split between ${escapeHtml(splitNames)}</span>
+      </div>
+    `;
+    expensesList.appendChild(li);
+  });
+}
+
+document.getElementById('show-add-expense-btn').addEventListener('click', () => {
+  document.getElementById('add-expense-form').classList.remove('hidden');
+});
+
+document.getElementById('cancel-add-expense-btn').addEventListener('click', () => {
+  document.getElementById('add-expense-form').classList.add('hidden');
+  resetExpenseForm();
+});
+
+function resetExpenseForm() {
+  document.getElementById('expense-desc-input').value = '';
+  document.getElementById('expense-amount-input').value = '';
+}
+
+document.getElementById('add-expense-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const description = document.getElementById('expense-desc-input').value.trim();
+  const amount = parseFloat(document.getElementById('expense-amount-input').value);
+  const paidById = parseInt(paidBySelect.value);
+
+  const checkedBoxes = splitCheckboxes.querySelectorAll('input[type="checkbox"]:checked');
+  const splitBetween = Array.from(checkedBoxes).map(cb => parseInt(cb.value));
+
+  if (!description || !amount || amount <= 0) {
+    showToast('Please enter a description and valid amount', true);
+    return;
+  }
+
+  if (splitBetween.length === 0) {
+    showToast('Select at least one person to split with', true);
+    return;
+  }
+
+  try {
+    await apiCall(`/groups/${currentGroupId}/expenses`, 'POST', {
+      description,
+      amount,
+      paid_by_id: paidById,
+      split_between: splitBetween
+    });
+
+    resetExpenseForm();
+    document.getElementById('add-expense-form').classList.add('hidden');
+    showToast('Expense added');
+
+    // Refresh both expenses and balances since they're linked
+    await Promise.all([
+      loadExpenses(currentGroupId),
+      loadBalances(currentGroupId)
+    ]);
+  } catch (err) {
+    // error already shown via toast
+  }
+});
+
+// ---------- Balances ----------
+
+async function loadBalances(groupId) {
+  try {
+    const balances = await apiCall(`/groups/${groupId}/balances`);
+    renderBalances(balances);
+  } catch (err) {
+    balancesList.innerHTML = '<li class="muted-text">Failed to load balances.</li>';
+  }
+}
+
+function renderBalances(balances) {
+  if (balances.length === 0) {
+    balancesList.innerHTML = '<li class="muted-text">No members yet.</li>';
+    return;
+  }
+
+  balancesList.innerHTML = '';
+  balances.forEach(entry => {
+    const li = document.createElement('li');
+    let statusClass = 'balance-zero';
+    let statusText = 'settled up';
+
+    if (entry.balance > 0.01) {
+      statusClass = 'balance-positive';
+      statusText = `is owed ₹${entry.balance.toFixed(2)}`;
+    } else if (entry.balance < -0.01) {
+      statusClass = 'balance-negative';
+      statusText = `owes ₹${Math.abs(entry.balance).toFixed(2)}`;
+    }
+
+    li.innerHTML = `
+      <span>${escapeHtml(entry.member_name)}</span>
+      <span class="${statusClass}">${statusText}</span>
+    `;
+    balancesList.appendChild(li);
+  });
 }
 
 // ---------- Init ----------
