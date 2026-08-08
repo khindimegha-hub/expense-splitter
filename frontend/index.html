@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expense Splitter</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <h1>💸 Expense Splitter</h1>
+    <p class="subtitle">Split bills, simplify debts.</p>
+  </header>
+
+  <main class="container">
+
+    <!-- VIEW 1: Groups List -->
+    <section id="groups-view" class="view">
+      <div class="view-header">
+        <h2>Your Groups</h2>
+        <button id="show-create-group-btn" class="btn btn-primary">+ New Group</button>
+      </div>
+
+      <!-- Create group form (hidden by default) -->
+      <form id="create-group-form" class="card hidden">
+        <input type="text" id="group-name-input" placeholder="Group name (e.g. Goa Trip)" required>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Create</button>
+          <button type="button" id="cancel-create-group-btn" class="btn btn-secondary">Cancel</button>
+        </div>
+      </form>
+
+      <div id="groups-list" class="groups-grid">
+        <!-- Group cards injected here by JS -->
+      </div>
+    </section>
+
+    <!-- VIEW 2: Group Detail -->
+    <section id="group-detail-view" class="view hidden">
+      <div class="view-header">
+        <button id="back-to-groups-btn" class="btn btn-secondary">← Back</button>
+        <h2 id="group-detail-title">Group Name</h2>
+      </div>
+
+      <div class="detail-grid">
+
+        <!-- Members panel -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Members</h3>
+            <button id="show-add-member-btn" class="btn btn-small btn-primary">+ Add</button>
+          </div>
+
+          <form id="add-member-form" class="inline-form hidden">
+            <input type="text" id="member-name-input" placeholder="Member name" required>
+            <button type="submit" class="btn btn-small btn-primary">Add</button>
+          </form>
+
+          <ul id="members-list" class="simple-list">
+            <!-- Members injected here -->
+          </ul>
+        </div>
+
+        <!-- Expenses panel (placeholder for Day 6) -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Expenses</h3>
+          </div>
+          <p id="expenses-placeholder" class="muted-text">
+            Expense tracking coming in the next step.
+          </p>
+          <ul id="expenses-list" class="simple-list"></ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Toast / error message -->
+    <div id="toast" class="toast hidden"></div>
+
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
