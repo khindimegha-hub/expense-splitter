@@ -320,6 +320,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
 }
 
 .expense-item-top {
@@ -339,6 +340,30 @@ body {
   font-weight: 700;
 }
 
+.expense-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.expense-delete-btn {
+  background: none;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.expense-delete-btn:hover {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
 /* Balances */
 .balance-positive {
   color: #059669;
@@ -353,4 +378,32 @@ body {
 .balance-zero {
   color: #9ca3af;
   font-weight: 600;
+}
+
+/* Settlements */
+.settlements-card {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+  border: 1px solid #bbf7d0;
+}
+
+.settlement-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.settlement-arrow {
+  color: #9ca3af;
+  font-weight: 700;
+}
+
+.settlement-amount {
+  margin-left: auto;
+  font-weight: 700;
+  color: #059669;
+  background: #d1fae5;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 13px;
 }

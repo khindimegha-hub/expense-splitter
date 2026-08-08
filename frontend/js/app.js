@@ -10,6 +10,8 @@ const groupDetailTitle = document.getElementById('group-detail-title');
 const membersList = document.getElementById('members-list');
 const expensesList = document.getElementById('expenses-list');
 const balancesList = document.getElementById('balances-list');
+const settlementsList = document.getElementById('settlements-list');
+const settlementsSubtitle = document.getElementById('settlements-subtitle');
 const paidBySelect = document.getElementById('expense-paid-by-select');
 const splitCheckboxes = document.getElementById('expense-split-checkboxes');
 const toast = document.getElementById('toast');
@@ -137,7 +139,7 @@ async function loadGroupDetail(groupId) {
 
     await Promise.all([
       loadExpenses(groupId),
-      loadBalances(groupId)
+      loadBalancesAndSettlements(groupId)
     ]);
   } catch (err) {
     showGroupsView();
@@ -229,15 +231,37 @@ function renderExpenses(expenses) {
     const li = document.createElement('li');
     const splitNames = expense.splits.map(s => s.member_name).join(', ');
     li.innerHTML = `
-      <div class="expense-item">
-        <div class="expense-item-top">
-          <span>${escapeHtml(expense.description)}</span>
-          <span class="expense-amount">₹${expense.amount.toFixed(2)}</span>
+      <div class="expense-item-row">
+        <div class="expense-item">
+          <div class="expense-item-top">
+            <span>${escapeHtml(expense.description)}</span>
+            <span class="expense-amount">₹${expense.amount.toFixed(2)}</span>
+          </div>
+          <span class="expense-item-meta">Paid by ${escapeHtml(expense.paid_by)} · split between ${escapeHtml(splitNames)}</span>
         </div>
-        <span class="expense-item-meta">Paid by ${escapeHtml(expense.paid_by)} · split between ${escapeHtml(splitNames)}</span>
+        <button class="expense-delete-btn" data-expense-id="${expense.id}" title="Delete expense">✕</button>
       </div>
     `;
     expensesList.appendChild(li);
+  });
+
+  // Attach delete handlers
+  document.querySelectorAll('.expense-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const expenseId = btn.getAttribute('data-expense-id');
+      if (!confirm('Delete this expense?')) return;
+
+      try {
+        await apiCall(`/expenses/${expenseId}`, 'DELETE');
+        showToast('Expense deleted');
+        await Promise.all([
+          loadExpenses(currentGroupId),
+          loadBalancesAndSettlements(currentGroupId)
+        ]);
+      } catch (err) {
+        // error shown via toast
+      }
+    });
   });
 }
 
@@ -287,24 +311,25 @@ document.getElementById('add-expense-form').addEventListener('submit', async (e)
     document.getElementById('add-expense-form').classList.add('hidden');
     showToast('Expense added');
 
-    // Refresh both expenses and balances since they're linked
     await Promise.all([
       loadExpenses(currentGroupId),
-      loadBalances(currentGroupId)
+      loadBalancesAndSettlements(currentGroupId)
     ]);
   } catch (err) {
     // error already shown via toast
   }
 });
 
-// ---------- Balances ----------
+// ---------- Balances + Settlements ----------
 
-async function loadBalances(groupId) {
+async function loadBalancesAndSettlements(groupId) {
   try {
-    const balances = await apiCall(`/groups/${groupId}/balances`);
-    renderBalances(balances);
+    const data = await apiCall(`/groups/${groupId}/settlements`);
+    renderBalances(data.balances);
+    renderSettlements(data.settlements);
   } catch (err) {
     balancesList.innerHTML = '<li class="muted-text">Failed to load balances.</li>';
+    settlementsList.innerHTML = '<li class="muted-text">Failed to load settlements.</li>';
   }
 }
 
@@ -333,6 +358,29 @@ function renderBalances(balances) {
       <span class="${statusClass}">${statusText}</span>
     `;
     balancesList.appendChild(li);
+  });
+}
+
+function renderSettlements(settlements) {
+  if (settlements.length === 0) {
+    settlementsSubtitle.textContent = 'Everyone is settled up! 🎉';
+    settlementsList.innerHTML = '';
+    return;
+  }
+
+  settlementsSubtitle.textContent = `${settlements.length} transaction${settlements.length !== 1 ? 's' : ''} to settle everyone up:`;
+  settlementsList.innerHTML = '';
+  settlements.forEach(txn => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="settlement-item">
+        <strong>${escapeHtml(txn.from)}</strong>
+        <span class="settlement-arrow">→</span>
+        <strong>${escapeHtml(txn.to)}</strong>
+      </span>
+      <span class="settlement-amount">₹${txn.amount.toFixed(2)}</span>
+    `;
+    settlementsList.appendChild(li);
   });
 }
 
