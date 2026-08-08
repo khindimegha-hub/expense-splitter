@@ -44,3 +44,65 @@ def validate_split_members(group_id, member_ids):
     valid_ids = {m.id for m in Member.query.filter_by(group_id=group_id).all()}
     invalid = [mid for mid in member_ids if mid not in valid_ids]
     return invalid  # empty list means all valid
+
+import heapq
+
+
+def simplify_debts(balances):
+    """
+    Given a list of {member_id, member_name, balance} dicts,
+    computes the minimum-ish set of transactions to settle all debts.
+
+    Algorithm: Greedy max-heap matching.
+      - Creditors (positive balance) go into a max-heap (people owed money)
+      - Debtors (negative balance) go into a max-heap (people who owe money)
+      - Repeatedly match the biggest creditor with the biggest debtor,
+        settle the smaller of the two amounts, and push back any remainder.
+
+    This is a well-known greedy heuristic for the "minimum cash flow" problem.
+    NOTE: This does not guarantee the mathematically optimal minimum number
+    of transactions in all cases (that problem is NP-hard in general), but
+    it performs close to optimal and runs in O(n log n).
+
+    Returns a list of settlement transactions:
+      [{"from": "Arjun", "to": "Megha", "amount": 600.0}, ...]
+    """
+    # Python's heapq is a min-heap, so negate values to simulate a max-heap
+    creditors = []  # (-balance, member_name) — people who are owed money
+    debtors = []    # (balance, member_name) — people who owe money (stored negative)
+
+    for entry in balances:
+        bal = round(entry['balance'], 2)
+        if bal > 0.01:
+            heapq.heappush(creditors, (-bal, entry['member_name']))
+        elif bal < -0.01:
+            heapq.heappush(debtors, (bal, entry['member_name']))
+        # balances within 0.01 of zero are treated as already settled
+
+    transactions = []
+
+    while creditors and debtors:
+        credit_amt, creditor_name = heapq.heappop(creditors)
+        debit_amt, debtor_name = heapq.heappop(debtors)
+
+        credit_amt = -credit_amt   # back to positive
+        debit_amt = -debit_amt     # back to positive (was stored negative)
+
+        settle_amount = round(min(credit_amt, debit_amt), 2)
+
+        transactions.append({
+            'from': debtor_name,
+            'to': creditor_name,
+            'amount': settle_amount
+        })
+
+        remaining_credit = round(credit_amt - settle_amount, 2)
+        remaining_debit = round(debit_amt - settle_amount, 2)
+
+        # Push back whichever side still has a balance left
+        if remaining_credit > 0.01:
+            heapq.heappush(creditors, (-remaining_credit, creditor_name))
+        if remaining_debit > 0.01:
+            heapq.heappush(debtors, (-remaining_debit, debtor_name))
+
+    return transactions

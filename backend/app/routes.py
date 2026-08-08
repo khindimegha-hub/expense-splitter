@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import db, Group, Member, Expense, ExpenseSplit
-from app.services import calculate_balances, validate_split_members
+from app.services import calculate_balances, validate_split_members, simplify_debts
 
 api = Blueprint('api', __name__)
 
@@ -231,8 +231,28 @@ def get_balances(group_id):
     """
     Returns each member's net balance in the group.
     Positive = they are owed money. Negative = they owe money.
-    This is the direct input to the Day 3 debt-simplification algorithm.
+    This is the direct input to the debt-simplification algorithm.
     """
     Group.query.get_or_404(group_id)
     balances = calculate_balances(group_id)
     return jsonify(balances)
+
+
+# ---------- SETTLEMENTS (Day 3 — debt simplification) ----------
+
+@api.route('/groups/<int:group_id>/settlements', methods=['GET'])
+def get_settlements(group_id):
+    """
+    Returns the minimum-ish set of transactions to settle all debts in the group.
+    This is the core differentiator of the project — debt simplification via
+    a greedy max-heap matching algorithm (see services.simplify_debts).
+    """
+    Group.query.get_or_404(group_id)
+    balances = calculate_balances(group_id)
+    settlements = simplify_debts(balances)
+
+    return jsonify({
+        'balances': balances,
+        'settlements': settlements,
+        'transaction_count': len(settlements)
+    })
