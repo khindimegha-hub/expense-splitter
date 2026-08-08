@@ -1,4 +1,31 @@
+import heapq
 from app.models import Member, Expense
+
+
+def compute_equal_splits(amount, member_ids):
+    """
+    Splits `amount` equally among `member_ids`, guaranteeing the shares
+    sum EXACTLY back to `amount` — even when division doesn't come out even.
+
+    Naive approach (round(amount/n, 2) for each person) can lose or gain
+    paise due to floating-point rounding (e.g. 100 / 3 = 33.33 each,
+    which sums to 99.99, not 100.00). This function distributes the
+    leftover paise to the first few members so the total always matches.
+
+    Returns a dict: {member_id: share_amount}
+    """
+    n = len(member_ids)
+    total_paise = int(round(amount * 100))  # work in integer paise to avoid float drift
+    base_share = total_paise // n
+    remainder = total_paise - (base_share * n)
+
+    shares = {}
+    for i, member_id in enumerate(member_ids):
+        share_paise = base_share + (1 if i < remainder else 0)
+        shares[member_id] = round(share_paise / 100, 2)
+
+    return shares
+
 
 def calculate_balances(group_id):
     """
@@ -44,8 +71,6 @@ def validate_split_members(group_id, member_ids):
     valid_ids = {m.id for m in Member.query.filter_by(group_id=group_id).all()}
     invalid = [mid for mid in member_ids if mid not in valid_ids]
     return invalid  # empty list means all valid
-
-import heapq
 
 
 def simplify_debts(balances):

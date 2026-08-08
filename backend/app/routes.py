@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import db, Group, Member, Expense, ExpenseSplit
-from app.services import calculate_balances, validate_split_members, simplify_debts
+from app.services import calculate_balances, validate_split_members, simplify_debts, compute_equal_splits
 
 api = Blueprint('api', __name__)
 
@@ -124,12 +124,14 @@ def add_expense(group_id):
     db.session.add(expense)
     db.session.flush()  # get expense.id before commit
 
-    share = round(data['amount'] / len(data['split_between']), 2)
+    # Day 4: use remainder-safe split calculation so shares always sum
+    # exactly to the original amount (avoids floating-point rounding loss)
+    shares = compute_equal_splits(data['amount'], data['split_between'])
     for member_id in data['split_between']:
         db.session.add(ExpenseSplit(
             expense_id=expense.id,
             member_id=member_id,
-            share_amount=share
+            share_amount=shares[member_id]
         ))
 
     db.session.commit()
@@ -204,12 +206,14 @@ def update_expense(expense_id):
             db.session.delete(split)
 
         expense.amount = new_amount
-        share = round(new_amount / len(new_split), 2)
+
+        # Day 4: remainder-safe split calculation
+        shares = compute_equal_splits(new_amount, new_split)
         for member_id in new_split:
             db.session.add(ExpenseSplit(
                 expense_id=expense.id,
                 member_id=member_id,
-                share_amount=share
+                share_amount=shares[member_id]
             ))
 
     db.session.commit()
@@ -238,7 +242,7 @@ def get_balances(group_id):
     return jsonify(balances)
 
 
-# ---------- SETTLEMENTS (Day 3 — debt simplification) ----------
+# ---------- SETTLEMENTS (debt simplification) ----------
 
 @api.route('/groups/<int:group_id>/settlements', methods=['GET'])
 def get_settlements(group_id):
