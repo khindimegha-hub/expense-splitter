@@ -1,0 +1,46 @@
+from app.models import Member, Expense
+
+def calculate_balances(group_id):
+    """
+    Computes each member's net balance in a group.
+
+    Positive balance = this member is owed money (they paid more than their share)
+    Negative balance = this member owes money (they paid less than their share)
+
+    Logic:
+      - When a member pays for an expense, credit them the full amount
+      - When a member is included in a split, debit them their share
+      - Net balance = total paid - total owed
+    """
+    members = Member.query.filter_by(group_id=group_id).all()
+    balances = {member.id: 0.0 for member in members}
+
+    expenses = Expense.query.filter_by(group_id=group_id).all()
+
+    for expense in expenses:
+        # Credit the payer
+        balances[expense.paid_by_id] += expense.amount
+
+        # Debit everyone included in the split
+        for split in expense.splits:
+            balances[split.member_id] -= split.share_amount
+
+    result = []
+    for member in members:
+        result.append({
+            'member_id': member.id,
+            'member_name': member.name,
+            'balance': round(balances[member.id], 2)
+        })
+
+    return result
+
+
+def validate_split_members(group_id, member_ids):
+    """
+    Ensures every member_id in a split actually belongs to this group.
+    Prevents a bug where someone from another group gets added to a split.
+    """
+    valid_ids = {m.id for m in Member.query.filter_by(group_id=group_id).all()}
+    invalid = [mid for mid in member_ids if mid not in valid_ids]
+    return invalid  # empty list means all valid

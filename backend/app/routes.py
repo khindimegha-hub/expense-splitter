@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models import db, Group, Member, Expense, ExpenseSplit
+from app.services import calculate_balances, validate_split_members
 
 api = Blueprint('api', __name__)
 
@@ -15,10 +16,12 @@ def create_group():
     db.session.commit()
     return jsonify(group.to_dict()), 201
 
+
 @api.route('/groups', methods=['GET'])
 def list_groups():
     groups = Group.query.all()
     return jsonify([g.to_dict() for g in groups])
+
 
 @api.route('/groups/<int:group_id>', methods=['GET'])
 def get_group(group_id):
@@ -27,12 +30,14 @@ def get_group(group_id):
     result['members'] = [m.to_dict() for m in group.members]
     return jsonify(result)
 
+
 @api.route('/groups/<int:group_id>', methods=['DELETE'])
 def delete_group(group_id):
     group = Group.query.get_or_404(group_id)
     db.session.delete(group)
     db.session.commit()
     return jsonify({'message': 'deleted'}), 200
+
 
 # ---------- MEMBERS ----------
 
@@ -47,11 +52,32 @@ def add_member(group_id):
     db.session.commit()
     return jsonify(member.to_dict()), 201
 
+
 @api.route('/groups/<int:group_id>/members', methods=['GET'])
 def list_members(group_id):
     Group.query.get_or_404(group_id)
     members = Member.query.filter_by(group_id=group_id).all()
     return jsonify([m.to_dict() for m in members])
+
+
+@api.route('/members/<int:member_id>', methods=['DELETE'])
+def delete_member(member_id):
+    """
+    Prevents deleting a member who is involved in existing expenses,
+    to avoid orphaned/broken balance calculations.
+    """
+    member = Member.query.get_or_404(member_id)
+
+    has_expenses = Expense.query.filter_by(paid_by_id=member_id).first()
+    has_splits = ExpenseSplit.query.filter_by(member_id=member_id).first()
+
+    if has_expenses or has_splits:
+        return jsonify({'error': 'cannot delete member with existing expenses. Delete their expenses first.'}), 400
+
+    db.session.delete(member)
+    db.session.commit()
+    return jsonify({'message': 'deleted'}), 200
+
 
 # ---------- EXPENSES ----------
 
@@ -76,6 +102,19 @@ def add_expense(group_id):
     if not data['split_between']:
         return jsonify({'error': 'split_between cannot be empty'}), 400
 
+    if data['amount'] <= 0:
+        return jsonify({'error': 'amount must be positive'}), 400
+
+    # Validate payer belongs to this group
+    payer = Member.query.filter_by(id=data['paid_by_id'], group_id=group_id).first()
+    if not payer:
+        return jsonify({'error': 'paid_by_id does not belong to this group'}), 400
+
+    # Validate all split members belong to this group
+    invalid_ids = validate_split_members(group_id, data['split_between'])
+    if invalid_ids:
+        return jsonify({'error': f'these member_ids do not belong to this group: {invalid_ids}'}), 400
+
     expense = Expense(
         description=data['description'],
         amount=data['amount'],
@@ -96,11 +135,86 @@ def add_expense(group_id):
     db.session.commit()
     return jsonify(expense.to_dict()), 201
 
+
 @api.route('/groups/<int:group_id>/expenses', methods=['GET'])
 def list_expenses(group_id):
     Group.query.get_or_404(group_id)
     expenses = Expense.query.filter_by(group_id=group_id).order_by(Expense.created_at.desc()).all()
     return jsonify([e.to_dict() for e in expenses])
+
+
+@api.route('/groups/<int:group_id>/expenses/by-member/<int:member_id>', methods=['GET'])
+def expenses_by_member(group_id, member_id):
+    """Returns all expenses in a group that a specific member paid for or was part of."""
+    Group.query.get_or_404(group_id)
+    expenses = Expense.query.filter_by(group_id=group_id).all()
+    filtered = [
+        e.to_dict() for e in expenses
+        if e.paid_by_id == member_id or any(s.member_id == member_id for s in e.splits)
+    ]
+    return jsonify(filtered)
+
+
+@api.route('/expenses/<int:expense_id>', methods=['PUT'])
+def update_expense(expense_id):
+    """
+    Allows editing description, amount, paid_by_id, or split_between.
+    Re-calculates splits from scratch if amount or split_between changes.
+
+    Expected JSON (all fields optional, include only what you want to change):
+    {
+      "description": "Updated name",
+      "amount": 1500.0,
+      "paid_by_id": 2,
+      "split_between": [1, 2, 3]
+    }
+    """
+    expense = Expense.query.get_or_404(expense_id)
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'error': 'no data provided'}), 400
+
+    if 'description' in data:
+        expense.description = data['description']
+
+    if 'paid_by_id' in data:
+        payer = Member.query.filter_by(id=data['paid_by_id'], group_id=expense.group_id).first()
+        if not payer:
+            return jsonify({'error': 'paid_by_id does not belong to this group'}), 400
+        expense.paid_by_id = data['paid_by_id']
+
+    # If amount or split_between changes, recompute splits entirely
+    if 'amount' in data or 'split_between' in data:
+        new_amount = data.get('amount', expense.amount)
+        new_split = data.get('split_between', [s.member_id for s in expense.splits])
+
+        if new_amount <= 0:
+            return jsonify({'error': 'amount must be positive'}), 400
+
+        if not new_split:
+            return jsonify({'error': 'split_between cannot be empty'}), 400
+
+        invalid_ids = validate_split_members(expense.group_id, new_split)
+        if invalid_ids:
+            return jsonify({'error': f'these member_ids do not belong to this group: {invalid_ids}'}), 400
+
+        # Delete old splits, create new ones
+        for split in list(expense.splits):
+            db.session.delete(split)
+
+        expense.amount = new_amount
+        share = round(new_amount / len(new_split), 2)
+        for member_id in new_split:
+            db.session.add(ExpenseSplit(
+                expense_id=expense.id,
+                member_id=member_id,
+                share_amount=share
+            ))
+
+    db.session.commit()
+    return jsonify(expense.to_dict()), 200
+
 
 @api.route('/expenses/<int:expense_id>', methods=['DELETE'])
 def delete_expense(expense_id):
@@ -108,3 +222,17 @@ def delete_expense(expense_id):
     db.session.delete(expense)
     db.session.commit()
     return jsonify({'message': 'deleted'}), 200
+
+
+# ---------- BALANCES ----------
+
+@api.route('/groups/<int:group_id>/balances', methods=['GET'])
+def get_balances(group_id):
+    """
+    Returns each member's net balance in the group.
+    Positive = they are owed money. Negative = they owe money.
+    This is the direct input to the Day 3 debt-simplification algorithm.
+    """
+    Group.query.get_or_404(group_id)
+    balances = calculate_balances(group_id)
+    return jsonify(balances)
