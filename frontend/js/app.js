@@ -1,4 +1,4 @@
-const API_BASE = 'http://127.0.0.1:5000/api';
+const API_BASE = 'https://expense-splitter-api-sr80.onrender.com/api';
 
 let currentGroupId = null;
 
