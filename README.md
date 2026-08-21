@@ -76,9 +76,7 @@ while creditors and debtors:
 
 ## Architecture
 
-## Architecture
-
-\`\`\`
+```
 expense-splitter/
 ├── backend/
 │   ├── app/
@@ -98,8 +96,7 @@ expense-splitter/
 │   └── js/app.js
 ├── screenshots/
 └── docker-compose.yml
-\`\`\`
-
+```
 
 **Design choice — separated business logic from routes:** `services.py` contains no Flask-specific code, making the core algorithms independently testable and reusable (e.g., could plug into a CLI tool or a different API framework without rewriting the logic).
 
