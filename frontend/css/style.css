@@ -432,3 +432,19 @@ body {
   border-radius: 20px;
   font-size: 13px;
 }
+
+.member-delete-btn {
+  background: none;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.member-delete-btn:hover {
+  color: #dc2626;
+  background: #fee2e2;
+}

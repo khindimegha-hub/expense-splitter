@@ -182,8 +182,26 @@ function renderMembers(members) {
         <span class="avatar-circle">${initials(member.name)}</span>
         ${escapeHtml(member.name)}
       </span>
+      <button class="member-delete-btn" data-member-id="${member.id}" title="Remove member">✕</button>
     `;
     membersList.appendChild(li);
+  });
+
+  // Attach delete handlers
+  document.querySelectorAll('.member-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const memberId = btn.getAttribute('data-member-id');
+      if (!confirm('Remove this member?')) return;
+
+      try {
+        await apiCall(`/members/${memberId}`, 'DELETE');
+        showToast('Member removed');
+        loadGroupDetail(currentGroupId);
+      } catch (err) {
+        // error shown via toast — will show the backend's message if the
+        // member has existing expenses (deletion is blocked in that case)
+      }
+    });
   });
 }
 
