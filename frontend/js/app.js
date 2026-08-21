@@ -89,11 +89,33 @@ async function loadGroups() {
       const card = document.createElement('div');
       card.className = 'group-card';
       card.innerHTML = `
-        <h4>${escapeHtml(group.name)}</h4>
+        <div class="group-card-top">
+          <h4>${escapeHtml(group.name)}</h4>
+          <button class="group-delete-btn" data-group-id="${group.id}" title="Delete group">✕</button>
+        </div>
         <p class="member-count">${group.member_count} member${group.member_count !== 1 ? 's' : ''}</p>
       `;
       card.addEventListener('click', () => showGroupDetailView(group.id));
       groupsList.appendChild(card);
+    });
+
+    // Attach delete handlers — stopPropagation prevents the card's click
+    // (which opens the group) from firing when the delete button is clicked
+    document.querySelectorAll('.group-delete-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const groupId = btn.getAttribute('data-group-id');
+
+        if (!confirm('Delete this group and all its expenses? This cannot be undone.')) return;
+
+        try {
+          await apiCall(`/groups/${groupId}`, 'DELETE');
+          showToast('Group deleted');
+          loadGroups();
+        } catch (err) {
+          // error shown via toast
+        }
+      });
     });
   } catch (err) {
     groupsList.innerHTML = '<p class="empty-state">Failed to load groups.</p>';
@@ -183,6 +205,21 @@ document.getElementById('add-member-form').addEventListener('submit', async (e) 
     loadGroupDetail(currentGroupId);
   } catch (err) {
     // error already shown via toast
+  }
+});
+
+// ---------- Delete Group (from detail view) ----------
+
+document.getElementById('delete-group-btn').addEventListener('click', async () => {
+  if (!currentGroupId) return;
+  if (!confirm('Delete this group and all its expenses? This cannot be undone.')) return;
+
+  try {
+    await apiCall(`/groups/${currentGroupId}`, 'DELETE');
+    showToast('Group deleted');
+    showGroupsView();
+  } catch (err) {
+    // error shown via toast
   }
 });
 
