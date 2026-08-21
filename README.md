@@ -76,25 +76,29 @@ while creditors and debtors:
 
 ## Architecture
 
+## Architecture
+
+\`\`\`
 expense-splitter/
 ├── backend/
-│ ├── app/
-│ │ ├── models.py # SQLAlchemy models: Group, Member, Expense, ExpenseSplit
-│ │ ├── routes.py # Flask REST API endpoints
-│ │ ├── services.py # Business logic: balance calc, debt simplification, split rounding
-│ │ └── config.py
-│ ├── tests/
-│ │ ├── test_services.py # 10 unit tests — algorithm correctness, edge cases
-│ │ └── test_api.py # 6 integration tests — full HTTP request/response flow
-│ ├── Dockerfile
-│ ├── requirements.txt
-│ └── run.py
+│   ├── app/
+│   │   ├── models.py       # SQLAlchemy models: Group, Member, Expense, ExpenseSplit
+│   │   ├── routes.py       # Flask REST API endpoints
+│   │   ├── services.py     # Business logic: balance calc, debt simplification, split rounding
+│   │   └── config.py
+│   ├── tests/
+│   │   ├── test_services.py  # 10 unit tests — algorithm correctness, edge cases
+│   │   └── test_api.py       # 6 integration tests — full HTTP request/response flow
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── run.py
 ├── frontend/
-│ ├── index.html
-│ ├── css/style.css
-│ └── js/app.js
+│   ├── index.html
+│   ├── css/style.css
+│   └── js/app.js
 ├── screenshots/
 └── docker-compose.yml
+\`\`\`
 
 
 **Design choice — separated business logic from routes:** `services.py` contains no Flask-specific code, making the core algorithms independently testable and reusable (e.g., could plug into a CLI tool or a different API framework without rewriting the logic).
