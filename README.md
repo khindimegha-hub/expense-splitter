@@ -10,9 +10,13 @@ A full-stack expense-splitting app (like Splitwise) that goes beyond basic CRUD 
 
 ---
 
-## Screenshots
+## Screenshot
 
-![Group detail view showing expenses, balances, and simplified settlements](screenshots/group-detail.png)
+Group detail view showing multi-person expense tracking, live balance calculation, and simplified debt settlements:
+
+![Group detail with expenses, balances, and settlements](screenshots/group_detail.png)
+
+---
 
 ## Why this project
 
@@ -24,12 +28,12 @@ This project implements that algorithm from scratch, tests it against edge cases
 
 ## Features
 
-- **Groups & members** — create groups, add/remove members
-- **Expense tracking** — add expenses with custom payer and split-between selection
+- **Groups** — create and delete groups
+- **Members** — add and remove members from a group (removal is blocked if the member is tied to existing expenses, to protect data integrity)
+- **Expense tracking** — add, edit, and delete expenses with custom payer and split-between selection
 - **Balance calculation** — real-time net balance per member (who's owed, who owes)
 - **Debt simplification** — greedy max-heap algorithm collapses N-way debts into the minimum settlement transactions
 - **Rounding-safe splits** — custom paise-based split calculation guarantees shares always sum exactly to the original amount (fixes a real floating-point bug most tutorials never catch)
-- **Full CRUD** — edit/delete expenses, remove members (with safeguards against deleting members tied to existing expenses)
 - **Cross-group validation** — prevents a member from one group being added to another group's expense split
 
 ---
@@ -66,11 +70,12 @@ while creditors and debtors:
 
 **Honest limitation:** this greedy approach does *not* guarantee the mathematically optimal minimum number of transactions in every case — finding the true minimum is NP-hard in general (it's related to a set-partition problem). Greedy performs close to optimal in practice and runs in O(n log n), which is the right tradeoff for a real app. I chose to be upfront about this rather than overclaim optimality.
 
-**Example:** 4-person group with expenses of ₹800, ₹400, and ₹1200 paid by different people. Naive settling could require up to 6 pairwise transactions (n(n−1)/2). The algorithm collapses this down to 2 transactions.
+**Real example (from testing):** a 4-person group with expenses of ₹4000, ₹1000, and ₹2000 paid by different members produced four individual balances, but the algorithm settled the entire group in just 3 transactions instead of a larger number of naive pairwise IOUs.
 
 ---
 
 ## Architecture
+
 expense-splitter/
 ├── backend/
 │ ├── app/
@@ -88,6 +93,7 @@ expense-splitter/
 │ ├── index.html
 │ ├── css/style.css
 │ └── js/app.js
+├── screenshots/
 └── docker-compose.yml
 
 
@@ -163,6 +169,7 @@ pytest tests/ -v
 - **Greedy algorithm is not provably optimal** in all cases (see algorithm section above) — a known, deliberate tradeoff for speed and simplicity over guaranteed minimality.
 - **No authentication** — this is a portfolio demo; a real deployment would need user accounts and access control per group.
 - **Free-tier cold starts** — first request after backend inactivity can take up to a minute.
+- **Equal splits only** — expenses are currently divided equally among selected members; unequal/percentage-based splits are not yet supported.
 
 ---
 
@@ -170,7 +177,7 @@ pytest tests/ -v
 
 - PostgreSQL + persistent storage
 - User authentication and per-user group access
-- Unequal/percentage-based expense splits (currently equal-split only)
+- Unequal/percentage-based expense splits
 - An exact (non-greedy) settlement algorithm as an optional mode, to compare against the heuristic
 - Real-time updates via WebSockets if multiple users are editing the same group
 
